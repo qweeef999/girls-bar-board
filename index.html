@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>付け回し管理ボード</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;background:#f5f5f5;color:#222}
+.tabs{display:flex;gap:4px;padding:12px 16px 0;border-bottom:1px solid #ddd;background:#fff}
+.tab{padding:8px 20px;font-size:14px;cursor:pointer;border:1px solid transparent;border-radius:6px 6px 0 0;color:#888;background:transparent}
+.tab.active{border-color:#ddd;border-bottom:1px solid #fff;color:#222;font-weight:500;background:#fff}
+.shop-panel{display:none;padding:16px}
+.shop-panel.active{display:block}
+.top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.btn{padding:6px 14px;font-size:13px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:#fff;color:#222}
+.btn:hover{background:#f0f0f0}
+.btn.primary{background:#e1f5ee;color:#0f6e56;border-color:#5dcaa5}
+.staff-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.staff-card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:12px;position:relative}
+.staff-card.busy{border-color:#5dcaa5;background:#e1f5ee}
+.card-name{font-size:14px;font-weight:500}
+.staff-name-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#ccc}
+.status-dot.free{background:#1d9e75}
+.status-dot.busy{background:#ef9f27}
+.assign-btn{width:100%;font-size:12px;padding:5px 8px;border:1px dashed #ccc;border-radius:6px;cursor:pointer;background:transparent;color:#888;text-align:center;margin-top:8px}
+.assign-btn:hover{background:#f5f5f5}
+.timer-block{margin-top:8px;font-size:12px}
+.timer-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;color:#666}
+.timer-row.done{color:#a32d2d;font-weight:500}
+.timer-row.soon{color:#ba7517;font-weight:500}
+.end-btn{font-size:11px;padding:3px 8px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:transparent;color:#888;margin-top:6px}
+.end-btn:hover{background:#ffeaea;color:#a32d2d}
+.delete-staff{position:absolute;top:8px;right:8px;width:18px;height:18px;font-size:11px;border:none;background:transparent;cursor:pointer;color:#aaa;opacity:0;border-radius:50%}
+.staff-card:hover .delete-staff{opacity:1}
+.delete-staff:hover{background:#ffeaea;color:#a32d2d}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border:1px solid #ddd;border-radius:10px;padding:20px;width:280px}
+.modal h4{font-size:15px;font-weight:500;margin-bottom:14px}
+.modal label{font-size:13px;color:#666;display:block;margin-bottom:4px}
+.modal input,.modal select{width:100%;font-size:14px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;margin-bottom:12px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.free-count{font-size:13px;color:#888}
+.rename-btn{font-size:12px;padding:4px 10px;margin-left:8px}
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab(0)" id="tab0">店舗A</button>
+  <button class="tab" onclick="switchTab(1)" id="tab1">店舗B</button>
+  <button class="btn rename-btn" onclick="renameShop()">店名編集</button>
+</div>
+
+<div id="panel0" class="shop-panel active"></div>
+<div id="panel1" class="shop-panel"></div>
+
+<div class="modal-overlay" id="addStaffModal">
+  <div class="modal">
+    <h4>スタッフ追加</h4>
+    <label>名前</label>
+    <input id="newStaffName" type="text" placeholder="スタッフ名" />
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal('addStaffModal')">キャンセル</button>
+      <button class="btn primary" onclick="confirmAddStaff()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="assignModal">
+  <div class="modal">
+    <h4>お客様をアサイン</h4>
+    <label>コース</label>
+    <select id="assignCourse">
+      <option value="40">40分コース</option>
+      <option value="60">60分コース</option>
+    </select>
+    <label>スタート時間</label>
+    <input id="assignTime" type="time" />
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal('assignModal')">キャンセル</button>
+      <button class="btn primary" onclick="confirmAssign()">セット</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state={shops:[{name:'店舗A',staff:[]},{name:'店舗B',staff:[]}],currentTab:0,pendingShopIdx:null,pendingStaffIdx:null};
+
+function saveState(){localStorage.setItem('gbstate',JSON.stringify({shops:state.shops,currentTab:state.currentTab}))}
+function loadState(){
+  try{
+    const d=JSON.parse(localStorage.getItem('gbstate'));
+    if(d){state.shops=d.shops;state.currentTab=d.currentTab||0;}
+  }catch(e){}
+}
+
+function pad(n){return String(n).padStart(2,'0')}
+function timeToMins(t){const[h,m]=t.split(':').map(Number);return h*60+m}
+function minsToTime(m){return pad(Math.floor(m/60)%24)+':'+pad(m%60)}
+function nowStr(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes())}
+
+function switchTab(i){
+  state.currentTab=i;
+  document.querySelectorAll('.tab').forEach((t,idx)=>t.classList.toggle('active',idx===i));
+  document.querySelectorAll('.shop-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+  renderShop(i);
+}
+
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+
+function addStaff(){document.getElementById('newStaffName').value='';openModal('addStaffModal')}
+function confirmAddStaff(){
+  const name=document.getElementById('newStaffName').value.trim();
+  if(!name)return;
+  state.shops[state.currentTab].staff.push({name,busy:false,course:null,start:null});
+  saveState();renderShop(state.currentTab);closeModal('addStaffModal');
+}
+
+function deleteStaff(si,idx){state.shops[si].staff.splice(idx,1);saveState();renderShop(si)}
+
+function openAssign(si,idx){
+  state.pendingShopIdx=si;state.pendingStaffIdx=idx;
+  document.getElementById('assignTime').value=nowStr();
+  openModal('assignModal');
+}
+
+function confirmAssign(){
+  const course=parseInt(document.getElementById('assignCourse').value);
+  const start=document.getElementById('assignTime').value;
+  const s=state.shops[state.pendingShopIdx].staff[state.pendingStaffIdx];
+  s.busy=true;s.course=course;s.start=start;
+  saveState();renderShop(state.pendingShopIdx);closeModal('assignModal');
+}
+
+function endSession(si,idx){
+  const s=state.shops[si].staff[idx];
+  s.busy=false;s.course=null;s.start=null;
+  saveState();renderShop(si);
+}
+
+function getSchedule(start,course){
+  const sm=timeToMins(start);
+  return{change:minsToTime(sm+course/2),extend:minsToTime(sm+course-5),end:minsToTime(sm+course)};
+}
+
+function getRowClass(t){
+  const nm=new Date().getHours()*60+new Date().getMinutes();
+  const diff=timeToMins(t)-nm;
+  if(diff<=0)return'done';if(diff<=5)return'soon';return'';
+}
+
+function renderShop(idx){
+  const shop=state.shops[idx];
+  const free=shop.staff.filter(s=>!s.busy).length;
+  document.getElementById('tab'+idx).textContent=shop.name;
+  let html=`<div class="top-bar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <strong style="font-size:15px">${shop.name}</strong>
+      <span class="free-count">空き ${free}人 / 全${shop.staff.length}人</span>
+    </div>
+    <button class="btn primary" onclick="addStaff()">＋ スタッフ追加</button>
+  </div><div class="staff-grid">`;
+
+  if(shop.staff.length===0){
+    html+=`</div><div style="text-align:center;padding:40px;color:#aaa;font-size:14px">スタッフを追加してください</div>`;
+  }else{
+    shop.staff.forEach((s,si)=>{
+      const sc=s.busy&&s.start?getSchedule(s.start,s.course):null;
+      html+=`<div class="staff-card${s.busy?' busy':''}">
+        <button class="delete-staff" onclick="deleteStaff(${idx},${si})">✕</button>
+        <div class="staff-name-row">
+          <span class="card-name">${s.name}</span>
+          <span class="status-dot${s.busy?' busy':' free'}"></span>
+        </div>`;
+      if(sc){
+        html+=`<div style="font-size:11px;color:#666;margin-bottom:6px">${s.course}分 / ${s.start}〜${sc.end}</div>
+        <div class="timer-block">
+          <div class="timer-row ${getRowClass(sc.change)}"><span>場内/チェンジ</span><span>${sc.change}</span></div>
+          <div class="timer-row ${getRowClass(sc.extend)}"><span>延長交渉</span><span>${sc.extend}</span></div>
+          <div class="timer-row ${getRowClass(sc.end)}"><span>終了</span><span>${sc.end}</span></div>
+        </div>
+        <button class="end-btn" onclick="endSession(${idx},${si})">終了・クリア</button>`;
+      }else{
+        html+=`<button class="assign-btn" onclick="openAssign(${idx},${si})">＋ お客様をアサイン</button>`;
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+  document.getElementById('panel'+idx).innerHTML=html;
+}
+
+function renameShop(){
+  const idx=state.currentTab;
+  const n=prompt('店舗名を入力',state.shops[idx].name);
+  if(n&&n.trim()){state.shops[idx].name=n.trim();saveState();renderShop(idx);}
+}
+
+document.getElementById('newStaffName').addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddStaff()});
+
+loadState();
+renderShop(0);renderShop(1);
+if(state.currentTab===1)switchTab(1);
+setInterval(()=>renderShop(state.currentTab),30000);
+</script>
+</body>
+</html>
