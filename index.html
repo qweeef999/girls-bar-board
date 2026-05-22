@@ -35,6 +35,7 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .course-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
 .course-num{font-size:16px;font-weight:700;min-width:24px}
 .half-block{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.half-block.single{grid-template-columns:1fr}
 .half{background:#f9f9f9;border:1px solid #eee;border-radius:8px;padding:8px}
 .half.ext-half{background:#fff8e6;border-color:#f0c060}
 .half-label{font-size:11px;color:#888;margin-bottom:4px;font-weight:500}
@@ -48,12 +49,11 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .tl-item.done{background:#ffeaea;border-color:#f09595;color:#a32d2d;font-weight:500}
 .tl-item.soon{background:#faeeda;border-color:#ef9f27;color:#854f0b;font-weight:500}
 .tl-item.extended{background:#e1f5ee;border-color:#5dcaa5;color:#0f6e56;font-weight:500}
-.tl-item.ext-label{background:#fff8e6;border-color:#f0c060;color:#854f0b}
-.copy-btn{padding:2px 8px;font-size:11px;border:1px solid #c4b5fd;border-radius:20px;cursor:pointer;background:#f5f0ff;color:#5b21b6}
+.copy-btn{padding:2px 8px;font-size:11px;border:1px solid #c4b5fd;border-radius:20px;cursor:pointer;background:#f5f0ff;color:#5b21b6;-webkit-tap-highlight-color:transparent}
 .copy-btn:hover{background:#ede9fe}
 .copy-btn.copied{background:#e1f5ee;color:#0f6e56;border-color:#5dcaa5}
 .ext-block{border:1px solid #f0c060;border-radius:8px;padding:8px;margin-bottom:8px;background:#fffdf5}
-.ext-block-label{font-size:11px;color:#854f0b;font-weight:500;margin-bottom:6px}
+.ext-block-label{font-size:11px;color:#854f0b;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .status-table{width:100%;border-collapse:collapse}
 .status-table th{text-align:left;font-size:12px;color:#888;font-weight:500;padding:5px 7px;border-bottom:1px solid #eee}
 .status-table td{padding:7px;border-bottom:1px solid #f0f0f0;font-size:12px;vertical-align:middle}
@@ -80,8 +80,12 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .link-row{display:flex;align-items:center;gap:8px;margin:8px 0;padding:6px 8px;background:#f5f0ff;border-radius:6px;font-size:12px;color:#5b21b6}
 .divider{height:1px;background:#eee;margin:10px 0}
 .toggle-done-btn{font-size:11px;padding:3px 10px;border:1px solid #ddd;border-radius:20px;cursor:pointer;background:#fff;color:#888}
-.toggle-done-btn:hover{background:#f0f0f0}
 .toggle-done-btn.active{background:#f0f0f0;color:#222;border-color:#bbb}
+/* コピー用モーダル */
+#copyModal{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;display:none;align-items:center;justify-content:center}
+#copyModal.open{display:flex}
+#copyModalBox{background:#fff;border-radius:12px;padding:18px;width:280px;max-width:92vw}
+#copyModalText{width:100%;font-size:14px;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:12px;resize:none;height:70px}
 </style>
 </head>
 <body>
@@ -92,6 +96,18 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 </div>
 <div id="shopPanel0"></div>
 <div id="shopPanel1" style="display:none"></div>
+
+<!-- コピーモーダル -->
+<div id="copyModal">
+  <div id="copyModalBox">
+    <div style="font-size:13px;color:#666;margin-bottom:8px">以下のテキストをコピーしてください</div>
+    <textarea id="copyModalText" readonly></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('copyModal').classList.remove('open')">閉じる</button>
+      <button class="btn primary" onclick="selectCopyText()">全選択</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modalAddStaff">
   <div class="modal">
@@ -217,6 +233,17 @@ function sortedStaff(staff){
   });
 }
 
+function showCopyModal(text){
+  document.getElementById('copyModalText').value=text;
+  document.getElementById('copyModal').classList.add('open');
+  setTimeout(()=>selectCopyText(),100);
+}
+function selectCopyText(){
+  const ta=document.getElementById('copyModalText');
+  ta.focus();ta.select();
+  try{document.execCommand('copy');}catch(e){}
+}
+
 function shiftTimeToHHMM(t){
   t=String(t).trim();
   if(t.includes('.')){const[h,d]=t.split('.');return pad(parseInt(h))+':'+(d==='5'?'30':'00');}
@@ -250,7 +277,6 @@ function confirmShiftImport(){
   setTimeout(()=>closeModal('modalShiftImport'),1200);
 }
 
-// コースのスケジュール取得（ベース部分のみ）
 function getBaseSchedule(c){
   const sm=toMins(c.start);
   const base=c.type;
@@ -264,29 +290,25 @@ function getBaseSchedule(c){
   };
 }
 
-// 延長ブロックのスケジュール取得
 function getExtSchedule(prevEnd,extMins,ext){
   const sm=toMins(prevEnd);
-  const defChange=ext.type>=40?toTime(sm+extMins/2):null;
+  const isHalf=extMins===30;
   const defEnd=toTime(sm+extMins);
+  const defChange=isHalf?null:toTime(sm+extMins/2);
   return{
     firstStart:ext.firstStart||prevEnd,
-    firstEnd:ext.firstEnd||(defChange||defEnd),
-    secondStart:ext.secondStart||(defChange||defEnd),
+    firstEnd:ext.firstEnd||(isHalf?defEnd:defChange),
+    secondStart:ext.secondStart||(isHalf?defEnd:defChange),
     secondEnd:ext.secondEnd||defEnd,
-    hasChange:extMins>=40
+    isHalf
   };
 }
 
-// コース全体の最終終了時間
 function getCourseEndTime(c){
   if(c.extensions&&c.extensions.length>0){
     let prevEnd=getBaseSchedule(c).secondEnd;
-    let lastExt=null;
     c.extensions.forEach(ext=>{
-      const sc=getExtSchedule(prevEnd,ext.mins,ext);
-      prevEnd=sc.secondEnd;
-      lastExt=sc;
+      prevEnd=getExtSchedule(prevEnd,ext.mins,ext).secondEnd;
     });
     return prevEnd;
   }
@@ -298,18 +320,6 @@ function makeCopyText(type,names,time){
   const mins=getMinPart(time);
   if(type==='change')return`${nameStr}${mins}までに場内交渉お願いします`;
   return`${nameStr}${mins}までに延長交渉お願いします`;
-}
-
-function copyToClipboard(text,btnId){
-  navigator.clipboard.writeText(text).then(()=>{
-    const btn=document.getElementById(btnId);
-    if(btn){btn.textContent='コピー済み✓';btn.classList.add('copied');setTimeout(()=>{btn.textContent='コピー';btn.classList.remove('copied')},2000);}
-  }).catch(()=>{
-    const ta=document.createElement('textarea');
-    ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
-    const btn=document.getElementById(btnId);
-    if(btn){btn.textContent='コピー済み✓';btn.classList.add('copied');setTimeout(()=>{btn.textContent='コピー';btn.classList.remove('copied')},2000);}
-  });
 }
 
 function switchShop(i){
@@ -356,7 +366,7 @@ function openAssign(si,ci,half,extIdx){
   let already=[];
   if(extIdx!=null){
     const ext=course.extensions[extIdx];
-    already=half==='first'?ext.firstHalf:ext.secondHalf;
+    already=half==='first'?(ext.firstHalf||[]):(ext.secondHalf||[]);
   }else{
     already=half==='first'?course.firstHalf:course.secondHalf;
   }
@@ -381,8 +391,8 @@ function removeGirl(si,ci,half,name,extIdx){
   const c=shops[si].courses[ci];
   if(extIdx!=null){
     const ext=c.extensions[extIdx];
-    if(half==='first')ext.firstHalf=ext.firstHalf.filter(n=>n!==name);
-    else ext.secondHalf=ext.secondHalf.filter(n=>n!==name);
+    if(half==='first')ext.firstHalf=(ext.firstHalf||[]).filter(n=>n!==name);
+    else ext.secondHalf=(ext.secondHalf||[]).filter(n=>n!==name);
   }else{
     if(half==='first')c.firstHalf=c.firstHalf.filter(n=>n!==name);
     else c.secondHalf=c.secondHalf.filter(n=>n!==name);
@@ -393,8 +403,8 @@ function jonaiBtnClick(si,ci,extIdx){
   const course=shops[si].courses[ci];
   if(extIdx!=null){
     const ext=course.extensions[extIdx];
-    if(ext.firstHalf.length===0){alert('前半に女の子がいません');return;}
-    if(ext.secondHalf.length>0){if(!confirm('後半に既にアサインがあります。前半の子で上書きしますか？'))return;}
+    if((ext.firstHalf||[]).length===0){alert('前半に女の子がいません');return;}
+    if((ext.secondHalf||[]).length>0){if(!confirm('後半に既にアサインがあります。前半の子で上書きしますか？'))return;}
     else{if(!confirm('場内にします。前半の子をそのまま後半にセットします。'))return;}
     ext.secondHalf=[...ext.firstHalf];
   }else{
@@ -408,7 +418,6 @@ function jonaiBtnClick(si,ci,extIdx){
 function openExtend(si,ci){
   pendingShop=si;pendingExtCourse=ci;
   const c=shops[si].courses[ci];
-  // 延長オプション: 60分コースかつBASET(idx=1)のみ30分追加
   let opts=[...shops[si].extOptions];
   if(c.type===60&&si===1&&!opts.includes(30))opts=[30,...opts];
   document.getElementById('inputExtend').innerHTML=opts.map(o=>`<option value="${o}">${o}分延長</option>`).join('');
@@ -452,18 +461,17 @@ function confirmEditTime(){
   save();renderShop(pendingShop);closeModal('modalEditTime');
 }
 
-function renderTimeline(sc,type,firstNames,secondNames,btnPrefix,isExt,extMins){
-  const actualType=isExt?extMins:type;
-  let changeTime,extNegTime;
-  if(actualType===40||actualType===20){
+function renderTimeline(sc,baseType,firstNames,secondNames,btnPrefix,isExt,extMins){
+  const effectiveType=isExt?extMins:baseType;
+  const isHalf=effectiveType===30;
+  let changeTime=null,extNegTime;
+
+  if(isHalf){
+    extNegTime=toTime(toMins(sc.secondEnd)-10);
+  }else if(effectiveType===40||effectiveType===20){
     changeTime=sc.firstEnd;
     extNegTime=toTime(toMins(sc.secondEnd)-5);
-  }else if(actualType===30){
-    // ハーフ延長30分：場内なし、延長交渉は終了-10分
-    extNegTime=toTime(toMins(sc.secondEnd)-10);
-    changeTime=null;
   }else{
-    // 60分・40分延長
     changeTime=toTime(toMins(sc.firstEnd)-5);
     extNegTime=toTime(toMins(sc.secondEnd)-10);
   }
@@ -471,37 +479,47 @@ function renderTimeline(sc,type,firstNames,secondNames,btnPrefix,isExt,extMins){
   let html='<div class="timeline">';
   if(changeTime){
     const changeCopy=firstNames&&firstNames.length>0?makeCopyText('change',firstNames,changeTime):'';
-    const changeBtnId=`${btnPrefix}_change`;
+    const bid=`${btnPrefix}_change`;
     html+=`<span class="tl-item ${tlClass(changeTime)}">場内/チェンジ ${changeTime}</span>`;
-    if(changeCopy)html+=`<button class="copy-btn" id="${changeBtnId}" onclick="copyToClipboard(${JSON.stringify(changeCopy)},${JSON.stringify(changeBtnId)})">コピー</button>`;
+    if(changeCopy)html+=`<button class="copy-btn" id="${bid}" onclick="showCopyModal(${JSON.stringify(changeCopy)})">コピー</button>`;
   }
   const extCopy=secondNames&&secondNames.length>0?makeCopyText('extend',secondNames,extNegTime):'';
-  const extBtnId=`${btnPrefix}_ext`;
+  const ebid=`${btnPrefix}_ext`;
   html+=`<span class="tl-item ${tlClass(extNegTime)}">延長交渉 ${extNegTime}</span>`;
-  if(extCopy)html+=`<button class="copy-btn" id="${extBtnId}" onclick="copyToClipboard(${JSON.stringify(extCopy)},${JSON.stringify(extBtnId)})">コピー</button>`;
+  if(extCopy)html+=`<button class="copy-btn" id="${ebid}" onclick="showCopyModal(${JSON.stringify(extCopy)})">コピー</button>`;
   html+=`<span class="tl-item ${tlClass(sc.secondEnd)}">終了 ${sc.secondEnd}</span>`;
   html+='</div>';
   return html;
 }
 
-function renderHalfBlock(si,ci,sc,firstHalf,secondHalf,extIdx){
+function renderHalfBlock(si,ci,sc,firstHalf,secondHalf,extIdx,isHalf){
   const ei=extIdx!=null?extIdx:-1;
   const eStr=ei>=0?`,${ei}`:'';
-  let html=`<div class="half-block">
+  if(isHalf){
+    // 30分ハーフ延長：1枠のみ
+    return`<div class="half-block single">
+      <div class="half ext-half">
+        <div class="half-label">延長枠</div>
+        <div class="half-time">${sc.firstStart} 〜 ${sc.secondEnd}</div>
+        <div class="half-girls">${(firstHalf||[]).map(n=>`<span class="girl-chip">${n}<span class="remove" onclick="removeGirl(${si},${ci},'first','${n}'${eStr})">✕</span></span>`).join('')}
+        <button class="btn" style="font-size:10px;padding:1px 6px" onclick="openAssign(${si},${ci},'first'${eStr})">＋</button></div>
+      </div>
+    </div>`;
+  }
+  return`<div class="half-block">
     <div class="half${ei>=0?' ext-half':''}">
       <div class="half-label">前半</div>
       <div class="half-time">${sc.firstStart} 〜 ${sc.firstEnd}</div>
-      <div class="half-girls">${firstHalf.map(n=>`<span class="girl-chip">${n}<span class="remove" onclick="removeGirl(${si},${ci},'first','${n}'${eStr})">✕</span></span>`).join('')}
+      <div class="half-girls">${(firstHalf||[]).map(n=>`<span class="girl-chip">${n}<span class="remove" onclick="removeGirl(${si},${ci},'first','${n}'${eStr})">✕</span></span>`).join('')}
       <button class="btn" style="font-size:10px;padding:1px 6px" onclick="openAssign(${si},${ci},'first'${eStr})">＋</button></div>
     </div>
     <div class="half${ei>=0?' ext-half':''}">
       <div class="half-label">後半</div>
       <div class="half-time">${sc.secondStart} 〜 ${sc.secondEnd}</div>
-      <div class="half-girls">${secondHalf.map(n=>`<span class="girl-chip">${n}<span class="remove" onclick="removeGirl(${si},${ci},'second','${n}'${eStr})">✕</span></span>`).join('')}
+      <div class="half-girls">${(secondHalf||[]).map(n=>`<span class="girl-chip">${n}<span class="remove" onclick="removeGirl(${si},${ci},'second','${n}'${eStr})">✕</span></span>`).join('')}
       <button class="btn" style="font-size:10px;padding:1px 6px" onclick="openAssign(${si},${ci},'second'${eStr})">＋</button></div>
     </div>
   </div>`;
-  return html;
 }
 
 function renderShop(idx){
@@ -567,7 +585,6 @@ function renderCourseTab(idx){
       const sc=getBaseSchedule(c);
       const totalEnd=getCourseEndTime(c);
       const extCount=c.extensions?c.extensions.length:0;
-
       html+=`<div class="course-card${c.done?' done-card':''}">
         <div class="course-head">
           <span class="course-num">#${ci+1}</span>
@@ -582,22 +599,19 @@ function renderCourseTab(idx){
           </div>
         </div>
         ${c.done?'':`
-        ${renderHalfBlock(idx,ci,sc,c.firstHalf,c.secondHalf,null)}
+        ${renderHalfBlock(idx,ci,sc,c.firstHalf,c.secondHalf,null,false)}
         ${renderTimeline(sc,c.type,c.firstHalf,c.secondHalf,`tl_${idx}_${ci}_base`,false,null)}
         ${(c.extensions||[]).map((ext,ei)=>{
           let prevEnd=sc.secondEnd;
-          for(let i=0;i<ei;i++){
-            const prev=c.extensions[i];
-            const ps=getExtSchedule(prevEnd,prev.mins,prev);
-            prevEnd=ps.secondEnd;
-          }
+          for(let i=0;i<ei;i++){prevEnd=getExtSchedule(prevEnd,c.extensions[i].mins,c.extensions[i]).secondEnd;}
           const esc=getExtSchedule(prevEnd,ext.mins,ext);
-          return `<div class="ext-block">
-            <div class="ext-block-label">延長${ei+1} (${ext.mins}分)
-              <button class="btn danger" style="font-size:10px;padding:1px 6px;margin-left:8px" onclick="deleteExtension(${idx},${ci},${ei})">削除</button>
-              ${esc.hasChange?`<button class="btn info" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="jonaiBtnClick(${idx},${ci},${ei})">場内</button>`:''}
+          return`<div class="ext-block">
+            <div class="ext-block-label">
+              <span>延長${ei+1} (${ext.mins}分)</span>
+              ${!esc.isHalf?`<button class="btn info" style="font-size:10px;padding:1px 6px" onclick="jonaiBtnClick(${idx},${ci},${ei})">場内</button>`:''}
+              <button class="btn danger" style="font-size:10px;padding:1px 6px" onclick="deleteExtension(${idx},${ci},${ei})">削除</button>
             </div>
-            ${renderHalfBlock(idx,ci,esc,ext.firstHalf,ext.secondHalf,ei)}
+            ${renderHalfBlock(idx,ci,esc,ext.firstHalf,ext.secondHalf,ei,esc.isHalf)}
             ${renderTimeline(esc,c.type,ext.firstHalf,ext.secondHalf,`tl_${idx}_${ci}_ext${ei}`,true,ext.mins)}
           </div>`;
         }).join('')}
@@ -620,11 +634,11 @@ function renderStatusTab(idx){
     sorted.forEach(s=>{
       const ac=shop.courses.filter(c=>!c.done&&(
         c.firstHalf.includes(s.name)||c.secondHalf.includes(s.name)||
-        (c.extensions||[]).some(e=>e.firstHalf.includes(s.name)||e.secondHalf.includes(s.name))
+        (c.extensions||[]).some(e=>(e.firstHalf||[]).includes(s.name)||(e.secondHalf||[]).includes(s.name))
       ));
       const total=shop.courses.filter(c=>
         c.firstHalf.includes(s.name)||c.secondHalf.includes(s.name)||
-        (c.extensions||[]).some(e=>e.firstHalf.includes(s.name)||e.secondHalf.includes(s.name))
+        (c.extensions||[]).some(e=>(e.firstHalf||[]).includes(s.name)||(e.secondHalf||[]).includes(s.name))
       ).length;
       const overlap=ac.length>1;
       const overlapBadge=overlap?`<span class="overlap-badge">⚠ 重複</span>`:'';
@@ -636,16 +650,12 @@ function renderStatusTab(idx){
           const ci=shop.courses.indexOf(c);
           const sc=getBaseSchedule(c);
           const totalEnd=getCourseEndTime(c);
-          const inBase=c.firstHalf.includes(s.name)||c.secondHalf.includes(s.name);
           const inFirst=c.firstHalf.includes(s.name);
           const inSecond=c.secondHalf.includes(s.name);
-          let half='延長';
-          let start=sc.firstStart,end=totalEnd;
-          if(inBase){
-            half=inFirst&&inSecond?'前半/後半':inFirst?'前半':'後半';
-            start=inFirst?sc.firstStart:sc.secondStart;
-            end=inSecond?sc.secondEnd:sc.firstEnd;
-          }
+          const inBase=inFirst||inSecond;
+          let half=inBase?(inFirst&&inSecond?'前半/後半':inFirst?'前半':'後半'):'延長';
+          let start=inFirst?sc.firstStart:sc.secondStart;
+          let end=inSecond?sc.secondEnd:inFirst?sc.firstEnd:totalEnd;
           const lc=tlClass(end);
           html+=`<tr>
             <td>${i===0?`<span class="dot busy"></span>${s.name}${overlapBadge}`:''}</td>
