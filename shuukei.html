@@ -1,0 +1,347 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>集計表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;font-size:13px;background:#fff;color:#222;padding:10px}
+h2{font-size:15px;font-weight:600;margin-bottom:8px}
+.date-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.date-row input{font-size:13px;padding:4px 8px;border:1px solid #ddd;border-radius:6px}
+.section{margin-bottom:16px}
+.section-title{font-size:13px;font-weight:600;margin-bottom:6px;color:#444}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f0f0f0;padding:5px 6px;border:1px solid #ccc;text-align:center;font-weight:500;white-space:nowrap}
+td{padding:4px 5px;border:1px solid #ddd;text-align:center;vertical-align:middle}
+td input{width:100%;font-size:12px;padding:2px 4px;border:none;background:transparent;text-align:center;color:#222}
+td input:focus{outline:1px solid #5dcaa5;border-radius:3px;background:#f0fff8}
+td.name-cell input{text-align:left}
+.num-cell{width:36px}
+.time-cell{width:52px}
+.drink-cell{width:32px}
+.money-cell{width:70px}
+.memo-cell{width:80px}
+.checkbox-cell{width:32px}
+.total-row td{background:#f9f9f9;font-weight:500}
+.btn{padding:5px 14px;font-size:12px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:#fff;color:#222}
+.btn:hover{background:#f0f0f0}
+.btn.primary{background:#e1f5ee;color:#0f6e56;border-color:#5dcaa5}
+.btn.danger{background:#ffeaea;color:#a32d2d;border-color:#f09595}
+.action-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.summary-box{background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:12px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.summary-item{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0;border-bottom:1px solid #eee}
+.summary-item:last-child{border-bottom:none}
+.summary-label{color:#666}
+.summary-value{font-weight:500;color:#222}
+.summary-value input{width:100px;font-size:13px;padding:2px 6px;border:1px solid #ddd;border-radius:4px;text-align:right}
+.highlight{color:#0f6e56;font-weight:600}
+.tabs{display:flex;gap:4px;margin-bottom:12px}
+.tab{padding:6px 16px;cursor:pointer;border-radius:6px 6px 0 0;color:#888;background:#f0f0f0;border:1px solid #ddd;border-bottom:none;font-size:13px}
+.tab.active{background:#fff;color:#222;font-weight:500}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.back-btn{font-size:12px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:#fff;color:#666;margin-bottom:12px;display:inline-block;text-decoration:none}
+.nichipai-badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;background:#faeeda;color:#854f0b;border:1px solid #ef9f27;cursor:pointer;user-select:none}
+.nichipai-badge.paid{background:#e1f5ee;color:#0f6e56;border-color:#5dcaa5}
+</style>
+</head>
+<body>
+
+<a href="index.html" class="back-btn">← ボードに戻る</a>
+
+<div class="date-row">
+  <strong style="font-size:15px">集計表</strong>
+  <input type="date" id="inputDate" />
+  <select id="inputShop" style="font-size:13px;padding:4px 8px;border:1px solid #ddd;border-radius:6px">
+    <option value="ANUBIS">ANUBIS</option>
+    <option value="BASTET">BASTET</option>
+  </select>
+  <button class="btn primary" onclick="save()">保存</button>
+  <button class="btn" onclick="clearAll()">クリア</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">スタッフ</div>
+  <div class="tab" onclick="switchTab(1)">お客さん</div>
+  <div class="tab" onclick="switchTab(2)">集計</div>
+</div>
+
+<!-- スタッフタブ -->
+<div class="tab-panel active" id="tabStaff">
+  <div class="action-row">
+    <button class="btn primary" onclick="addStaffRow()">＋ 行追加</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table id="staffTable">
+      <thead>
+        <tr>
+          <th style="width:24px">No</th>
+          <th style="min-width:70px">名前</th>
+          <th class="time-cell">出勤</th>
+          <th class="time-cell">退勤</th>
+          <th class="num-cell">実働h</th>
+          <th class="drink-cell">S</th>
+          <th class="drink-cell">M</th>
+          <th class="drink-cell">L</th>
+          <th class="drink-cell">指名</th>
+          <th class="checkbox-cell">日払</th>
+          <th style="width:24px"></th>
+        </tr>
+      </thead>
+      <tbody id="staffBody"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="5" style="text-align:right;font-size:11px;color:#666">合計</td>
+          <td id="totalS">0</td>
+          <td id="totalM">0</td>
+          <td id="totalL">0</td>
+          <td id="totalShimei">0</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- お客さんタブ -->
+<div class="tab-panel" id="tabCustomer">
+  <div class="action-row">
+    <button class="btn primary" onclick="addCustomerRow()">＋ 行追加</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table id="customerTable">
+      <thead>
+        <tr>
+          <th class="num-cell">NO</th>
+          <th class="num-cell">伝票</th>
+          <th class="num-cell">人数</th>
+          <th class="time-cell">入店</th>
+          <th class="time-cell">退店</th>
+          <th class="memo-cell">備考</th>
+          <th class="money-cell">売上</th>
+          <th style="width:40px">支払</th>
+          <th style="width:24px"></th>
+        </tr>
+      </thead>
+      <tbody id="customerBody"></tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="6" style="text-align:right;font-size:11px;color:#666">合計</td>
+          <td id="totalSales">¥0</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- 集計タブ -->
+<div class="tab-panel" id="tabSummary">
+  <div class="summary-box">
+    <div class="section-title" style="margin-bottom:8px">ドリンク集計</div>
+    <div class="summary-grid">
+      <div class="summary-item"><span class="summary-label">S (¥1,500)</span><span class="summary-value" id="sumS">0本 / ¥0</span></div>
+      <div class="summary-item"><span class="summary-label">M (¥2,000)</span><span class="summary-value" id="sumM">0本 / ¥0</span></div>
+      <div class="summary-item"><span class="summary-label">L (¥5,000)</span><span class="summary-value" id="sumL">0本 / ¥0</span></div>
+      <div class="summary-item"><span class="summary-label">指名</span><span class="summary-value" id="sumShimei">0回</span></div>
+    </div>
+  </div>
+  <div class="summary-box">
+    <div class="section-title" style="margin-bottom:8px">売上</div>
+    <div class="summary-item"><span class="summary-label">総売上</span><span class="summary-value highlight" id="sumTotalSales">¥0</span></div>
+    <div class="summary-item" style="margin-top:6px"><span class="summary-label">現金</span><span class="summary-value" id="sumCash">¥0</span></div>
+    <div class="summary-item"><span class="summary-label">カード</span><span class="summary-value" id="sumCard">¥0</span></div>
+  </div>
+  <div class="summary-box">
+    <div class="section-title" style="margin-bottom:8px">経費・粗利</div>
+    <div class="summary-item"><span class="summary-label">経費</span><span class="summary-value"><input type="number" id="inputExpense" placeholder="0" oninput="updateSummary()" style="width:100px;font-size:13px;padding:2px 6px;border:1px solid #ddd;border-radius:4px;text-align:right"></span></div>
+    <div class="summary-item" style="margin-top:4px"><span class="summary-label">粗利</span><span class="summary-value highlight" id="sumProfit">¥0</span></div>
+    <div class="summary-item"><span class="summary-label">粗利(現金)</span><span class="summary-value" id="sumProfitCash">¥0</span></div>
+    <div class="summary-item"><span class="summary-label">粗利(カード)</span><span class="summary-value" id="sumProfitCard">¥0</span></div>
+  </div>
+  <div class="summary-box">
+    <div class="section-title" style="margin-bottom:8px">スタッフ別ドリンク</div>
+    <div id="staffDrinkSummary"></div>
+  </div>
+</div>
+
+<script>
+let staffRows=[];
+let customerRows=[];
+let expense=0;
+
+function switchTab(i){
+  document.querySelectorAll('.tab').forEach((t,idx)=>t.classList.toggle('active',idx===i));
+  document.querySelectorAll('.tab-panel').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+  if(i===2)updateSummary();
+}
+
+function addStaffRow(data){
+  const id=Date.now()+Math.random();
+  staffRows.push({id,name:'',in:'',out:'',s:0,m:0,l:0,shimei:0,nichipai:false,...(data||{})});
+  renderStaff();
+}
+function removeStaffRow(id){
+  staffRows=staffRows.filter(r=>r.id!==id);
+  renderStaff();
+}
+function renderStaff(){
+  const tbody=document.getElementById('staffBody');
+  tbody.innerHTML=staffRows.map((r,i)=>`<tr>
+    <td>${i+1}</td>
+    <td class="name-cell"><input type="text" value="${r.name}" onchange="updateStaff(${r.id},'name',this.value)" placeholder="名前"></td>
+    <td><input type="time" value="${r.in}" onchange="updateStaff(${r.id},'in',this.value)"></td>
+    <td><input type="time" value="${r.out}" onchange="updateStaff(${r.id},'out',this.value)"></td>
+    <td>${calcHours(r.in,r.out)}</td>
+    <td><input type="number" min="0" value="${r.s||0}" onchange="updateStaff(${r.id},'s',+this.value);updateTotals()" style="width:30px"></td>
+    <td><input type="number" min="0" value="${r.m||0}" onchange="updateStaff(${r.id},'m',+this.value);updateTotals()" style="width:30px"></td>
+    <td><input type="number" min="0" value="${r.l||0}" onchange="updateStaff(${r.id},'l',+this.value);updateTotals()" style="width:30px"></td>
+    <td><input type="number" min="0" value="${r.shimei||0}" onchange="updateStaff(${r.id},'shimei',+this.value);updateTotals()" style="width:30px"></td>
+    <td><span class="nichipai-badge${r.nichipai?' paid':''}" onclick="toggleNichipai(${r.id})">${r.nichipai?'済':'未'}</span></td>
+    <td><button class="btn danger" style="font-size:10px;padding:1px 5px" onclick="removeStaffRow(${r.id})">✕</button></td>
+  </tr>`).join('');
+  updateTotals();
+}
+function updateStaff(id,field,val){
+  const r=staffRows.find(r=>r.id===id);
+  if(r){r[field]=val;if(field==='in'||field==='out')renderStaff();}
+  save();
+}
+function toggleNichipai(id){
+  const r=staffRows.find(r=>r.id===id);
+  if(r){r.nichipai=!r.nichipai;renderStaff();save();}
+}
+function calcHours(inT,outT){
+  if(!inT||!outT)return'—';
+  const i=inT.split(':').map(Number),o=outT.split(':').map(Number);
+  let mins=(o[0]*60+o[1])-(i[0]*60+i[1]);
+  if(mins<0)mins+=1440;
+  return(mins/60).toFixed(1)+'h';
+}
+function updateTotals(){
+  document.getElementById('totalS').textContent=staffRows.reduce((a,r)=>a+(+r.s||0),0);
+  document.getElementById('totalM').textContent=staffRows.reduce((a,r)=>a+(+r.m||0),0);
+  document.getElementById('totalL').textContent=staffRows.reduce((a,r)=>a+(+r.l||0),0);
+  document.getElementById('totalShimei').textContent=staffRows.reduce((a,r)=>a+(+r.shimei||0),0);
+}
+
+function addCustomerRow(data){
+  const id=Date.now()+Math.random();
+  customerRows.push({id,no:'',ninzu:1,in:'',out:'',memo:'',sales:0,payment:'現金',...(data||{})});
+  renderCustomer();
+}
+function removeCustomerRow(id){
+  customerRows=customerRows.filter(r=>r.id!==id);
+  renderCustomer();
+}
+function renderCustomer(){
+  const tbody=document.getElementById('customerBody');
+  tbody.innerHTML=customerRows.map((r,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><input type="text" value="${r.no||''}" onchange="updateCustomer(${r.id},'no',this.value)" style="width:36px" placeholder="番号"></td>
+    <td><input type="number" min="1" value="${r.ninzu||1}" onchange="updateCustomer(${r.id},'ninzu',+this.value)" style="width:32px"></td>
+    <td><input type="time" value="${r.in||''}" onchange="updateCustomer(${r.id},'in',this.value)"></td>
+    <td><input type="time" value="${r.out||''}" onchange="updateCustomer(${r.id},'out',this.value)"></td>
+    <td><input type="text" value="${r.memo||''}" onchange="updateCustomer(${r.id},'memo',this.value)" placeholder="備考"></td>
+    <td><input type="number" min="0" value="${r.sales||0}" onchange="updateCustomer(${r.id},'sales',+this.value);updateCustomerTotal()" style="width:68px"></td>
+    <td><select onchange="updateCustomer(${r.id},'payment',this.value)" style="font-size:11px;padding:2px;border:1px solid #ddd;border-radius:4px">
+      <option${r.payment==='現金'?' selected':''}>現金</option>
+      <option${r.payment==='カード'?' selected':''}>カード</option>
+    </select></td>
+    <td><button class="btn danger" style="font-size:10px;padding:1px 5px" onclick="removeCustomerRow(${r.id})">✕</button></td>
+  </tr>`).join('');
+  updateCustomerTotal();
+}
+function updateCustomer(id,field,val){
+  const r=customerRows.find(r=>r.id===id);
+  if(r){r[field]=val;}
+  save();
+}
+function updateCustomerTotal(){
+  const total=customerRows.reduce((a,r)=>a+(+r.sales||0),0);
+  document.getElementById('totalSales').textContent='¥'+total.toLocaleString();
+}
+
+function updateSummary(){
+  const s=staffRows.reduce((a,r)=>a+(+r.s||0),0);
+  const m=staffRows.reduce((a,r)=>a+(+r.m||0),0);
+  const l=staffRows.reduce((a,r)=>a+(+r.l||0),0);
+  const shimei=staffRows.reduce((a,r)=>a+(+r.shimei||0),0);
+  document.getElementById('sumS').textContent=`${s}本 / ¥${(s*1500).toLocaleString()}`;
+  document.getElementById('sumM').textContent=`${m}本 / ¥${(m*2000).toLocaleString()}`;
+  document.getElementById('sumL').textContent=`${l}本 / ¥${(l*5000).toLocaleString()}`;
+  document.getElementById('sumShimei').textContent=`${shimei}回`;
+  const totalSales=customerRows.reduce((a,r)=>a+(+r.sales||0),0);
+  const cash=customerRows.filter(r=>r.payment==='現金').reduce((a,r)=>a+(+r.sales||0),0);
+  const card=customerRows.filter(r=>r.payment==='カード').reduce((a,r)=>a+(+r.sales||0),0);
+  document.getElementById('sumTotalSales').textContent='¥'+totalSales.toLocaleString();
+  document.getElementById('sumCash').textContent='¥'+cash.toLocaleString();
+  document.getElementById('sumCard').textContent='¥'+card.toLocaleString();
+  expense=parseInt(document.getElementById('inputExpense').value)||0;
+  const profit=totalSales-expense;
+  const profitCash=cash-expense;
+  document.getElementById('sumProfit').textContent='¥'+profit.toLocaleString();
+  document.getElementById('sumProfitCash').textContent='¥'+profitCash.toLocaleString();
+  document.getElementById('sumProfitCard').textContent='¥'+card.toLocaleString();
+
+  // スタッフ別ドリンク
+  const div=document.getElementById('staffDrinkSummary');
+  div.innerHTML=staffRows.filter(r=>r.name).map(r=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #eee;font-size:12px">
+      <span style="font-weight:500;min-width:60px">${r.name}</span>
+      <span style="color:#666">S:${r.s||0} M:${r.m||0} L:${r.l||0} 指名:${r.shimei||0}</span>
+      <span style="color:#0f6e56;font-weight:500">¥${((+r.s||0)*1500+(+r.m||0)*2000+(+r.l||0)*5000).toLocaleString()}</span>
+    </div>
+  `).join('');
+}
+
+function save(){
+  const date=document.getElementById('inputDate').value;
+  const shop=document.getElementById('inputShop').value;
+  const key=`shuukei_${shop}_${date}`;
+  localStorage.setItem(key,JSON.stringify({staffRows,customerRows,expense:document.getElementById('inputExpense').value||0}));
+}
+
+function loadData(){
+  const date=document.getElementById('inputDate').value;
+  const shop=document.getElementById('inputShop').value;
+  if(!date)return;
+  const key=`shuukei_${shop}_${date}`;
+  try{
+    const d=JSON.parse(localStorage.getItem(key));
+    if(d){
+      staffRows=d.staffRows||[];
+      customerRows=d.customerRows||[];
+      document.getElementById('inputExpense').value=d.expense||0;
+    }else{
+      staffRows=[];customerRows=[];
+      document.getElementById('inputExpense').value=0;
+    }
+  }catch(e){staffRows=[];customerRows=[];}
+  renderStaff();renderCustomer();updateSummary();
+}
+
+function clearAll(){
+  if(!confirm('このページのデータをクリアしますか？'))return;
+  staffRows=[];customerRows=[];
+  document.getElementById('inputExpense').value=0;
+  renderStaff();renderCustomer();updateSummary();
+  save();
+}
+
+document.getElementById('inputDate').addEventListener('change',loadData);
+document.getElementById('inputShop').addEventListener('change',loadData);
+
+// 今日の日付をセット
+const today=new Date();
+document.getElementById('inputDate').value=today.toISOString().split('T')[0];
+
+renderStaff();
+renderCustomer();
+</script>
+</body>
+</html>
