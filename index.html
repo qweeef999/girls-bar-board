@@ -32,10 +32,12 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .badge.off{background:#f0f0f0;color:#888}
 .course-card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:10px;margin-bottom:8px}
 .course-card.done-card{opacity:0.5}
-.course-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.course-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;cursor:pointer;user-select:none}
 .course-num{font-size:16px;font-weight:700;min-width:24px}
-.course-summary{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:#444;margin-bottom:4px}
-.summary-chip{background:#f0f0f0;border-radius:20px;padding:2px 8px;font-size:11px}
+.summary-chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.summary-chip{background:#f0f0f0;border-radius:20px;padding:2px 8px;font-size:11px;color:#444}
+.summary-chip.memo{background:#fff8e6}
+.compact-btns{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
 .memo-row{display:flex;gap:6px;margin-bottom:8px}
 .memo-input{flex:1;font-size:12px;padding:5px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#222;font-family:sans-serif}
 .half-block{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
@@ -58,7 +60,7 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .ext-block{border:1px solid #f0c060;border-radius:8px;padding:8px;margin-bottom:8px;background:#fffdf5}
 .ext-block-label{font-size:11px;color:#854f0b;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;cursor:pointer;user-select:none}
 .ext-block-body.collapsed{display:none}
-.course-body.collapsed{display:none}
+.course-detail.collapsed{display:none}
 .status-table{width:100%;border-collapse:collapse}
 .status-table th{text-align:left;font-size:12px;color:#888;font-weight:500;padding:5px 7px;border-bottom:1px solid #eee}
 .status-table td{padding:7px;border-bottom:1px solid #f0f0f0;font-size:12px;vertical-align:middle}
@@ -91,8 +93,6 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 #copyModalBox{background:#fff;border-radius:12px;padding:18px;width:280px;max-width:92vw}
 #copyModalText{width:100%;font-size:14px;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:12px;resize:none;height:70px}
 .chevron{font-size:10px;margin-left:4px}
-.collapse-btn{font-size:11px;padding:2px 8px;border:1px solid #ddd;border-radius:20px;cursor:pointer;background:#fff;color:#666;margin-left:auto}
-.collapse-btn:hover{background:#f0f0f0}
 </style>
 </head>
 <body>
@@ -324,12 +324,8 @@ function updateMemo(si,ci,field,val){shops[si].courses[ci][field]=val;save();}
 
 function toggleCourse(key){
   courseCollapsed[key]=!courseCollapsed[key];
-  const body=document.getElementById('coursebody_'+key);
-  const chev=document.getElementById('coursechev_'+key);
-  if(body)body.classList.toggle('collapsed',courseCollapsed[key]);
-  if(chev)chev.textContent=courseCollapsed[key]?'▶':'▼';
+  renderShop(currentShop);
 }
-
 function toggleExt(key){
   extCollapsed[key]=!extCollapsed[key];
   const body=document.getElementById('extbody_'+key);
@@ -509,13 +505,6 @@ function renderHalfBlock(si,ci,sc,firstHalf,secondHalf,extIdx,isHalf){
   </div>`;
 }
 
-function getCourseSummary(c){
-  const sc=getBaseSchedule(c);
-  const totalEnd=getCourseEndTime(c);
-  const allGirls=[...new Set([...c.firstHalf,...c.secondHalf,...(c.extensions||[]).flatMap(e=>[...(e.firstHalf||[]),...(e.secondHalf||[])])])];
-  return{time:`${sc.firstStart} → ${totalEnd}`,girls:allGirls};
-}
-
 function renderShop(idx){
   const shop=shops[idx];
   const tab=shop.innerTab||0;
@@ -579,59 +568,63 @@ function renderCourseTab(idx){
       const sc=getBaseSchedule(c);
       const totalEnd=getCourseEndTime(c);
       const extCount=c.extensions?c.extensions.length:0;
-      const summary=getCourseSummary(c);
       const ckey=`${idx}_${ci}`;
       const collapsed=courseCollapsed[ckey]||false;
+      const allGirls=[...new Set([...c.firstHalf,...c.secondHalf,...(c.extensions||[]).flatMap(e=>[...(e.firstHalf||[]),...(e.secondHalf||[])])])];
 
       html+=`<div class="course-card${c.done?' done-card':''}">
-        <div class="course-head">
+        <div class="course-head" onclick="toggleCourse('${ckey}')">
           <span class="course-num">#${ci+1}</span>
           <span style="background:#f0f0f0;border-radius:20px;padding:2px 9px;font-size:11px">${c.type}分${extCount>0?` +延長×${extCount}`:''}</span>
           <span style="font-size:12px;color:#666">${sc.firstStart} → ${totalEnd}</span>
-          <button class="collapse-btn" onclick="toggleCourse('${ckey}')" id="coursechev_${ckey}">${collapsed?'▶ 展開':'▼ 閉じる'}</button>
+          <span style="margin-left:auto;font-size:11px;color:#888">${collapsed?'▶':'▼'}</span>
         </div>
         ${collapsed?`
-        <div class="course-summary">
-          <span style="font-size:12px;color:#444">${summary.time}</span>
-          ${summary.girls.map(n=>`<span class="summary-chip">${n}</span>`).join('')}
-          ${c.memo1?`<span class="summary-chip" style="background:#fff8e6">${c.memo1}</span>`:''}
-          ${c.memo2?`<span class="summary-chip" style="background:#fff8e6">${c.memo2}</span>`:''}
+        <div class="summary-chips">
+          ${allGirls.map(n=>`<span class="summary-chip">${n}</span>`).join('')}
+          ${c.memo1?`<span class="summary-chip memo">${c.memo1}</span>`:''}
+          ${c.memo2?`<span class="summary-chip memo">${c.memo2}</span>`:''}
+        </div>
+        <div class="compact-btns">
+          <button class="btn" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openEditTime(${idx},${ci})">時間編集</button>
+          <button class="btn info" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();jonaiBtnClick(${idx},${ci})">場内</button>
+          <button class="btn warn" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openExtend(${idx},${ci})">延長</button>
+          <button class="btn danger" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();markDone(${idx},${ci})">${c.done?'復元':'終了'}</button>
+          <button class="btn" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();deleteCourse(${idx},${ci})">削除</button>
         </div>
         `:`
-        <div class="course-body" id="coursebody_${ckey}">
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
-            <button class="btn" style="font-size:11px;padding:2px 7px" onclick="openEditTime(${idx},${ci})">時間編集</button>
-            <button class="btn info" style="font-size:11px;padding:2px 7px" onclick="jonaiBtnClick(${idx},${ci})">場内</button>
-            <button class="btn warn" style="font-size:11px;padding:2px 7px" onclick="openExtend(${idx},${ci})">延長</button>
-            <button class="btn danger" style="font-size:11px;padding:2px 7px" onclick="markDone(${idx},${ci})">${c.done?'復元':'終了'}</button>
-            <button class="btn" style="font-size:11px;padding:2px 7px" onclick="deleteCourse(${idx},${ci})">削除</button>
-          </div>
-          <div class="memo-row">
-            <input class="memo-input" type="text" placeholder="メモ1" value="${c.memo1||''}" oninput="updateMemo(${idx},${ci},'memo1',this.value)" />
-            <input class="memo-input" type="text" placeholder="メモ2" value="${c.memo2||''}" oninput="updateMemo(${idx},${ci},'memo2',this.value)" />
-          </div>
-          ${renderHalfBlock(idx,ci,sc,c.firstHalf,c.secondHalf,null,false)}
-          ${renderTimeline(sc,c.type,c.firstHalf,c.secondHalf,`tl_${idx}_${ci}_base`,false,null)}
-          ${(c.extensions||[]).map((ext,ei)=>{
-            let prevEnd=sc.secondEnd;
-            for(let i=0;i<ei;i++){prevEnd=getExtSchedule(prevEnd,c.extensions[i].mins,c.extensions[i]).secondEnd;}
-            const esc=getExtSchedule(prevEnd,ext.mins,ext);
-            const key=`${idx}_${ci}_${ei}`;
-            const ecollapsed=extCollapsed[key]||false;
-            return`<div class="ext-block">
-              <div class="ext-block-label" onclick="toggleExt('${key}')">
-                <span>延長${ei+1} (${ext.mins}分) ${esc.firstStart}→${esc.secondEnd}</span>
-                ${!esc.isHalf?`<button class="btn info" style="font-size:10px;padding:1px 6px" onclick="event.stopPropagation();jonaiBtnClick(${idx},${ci},${ei})">場内</button>`:''}
-                <button class="btn danger" style="font-size:10px;padding:1px 6px" onclick="event.stopPropagation();deleteExtension(${idx},${ci},${ei})">削除</button>
-                <span class="chevron" id="chev_${key}">${ecollapsed?'▶':'▼'}</span>
-              </div>
-              <div class="ext-block-body${ecollapsed?' collapsed':''}" id="extbody_${key}">
-                ${renderHalfBlock(idx,ci,esc,ext.firstHalf,ext.secondHalf,ei,esc.isHalf)}
-                ${renderTimeline(esc,c.type,ext.firstHalf,ext.secondHalf,`tl_${idx}_${ci}_ext${ei}`,true,ext.mins)}
-              </div>
-            </div>`;
-          }).join('')}
+        <div class="compact-btns">
+          <button class="btn" style="font-size:11px;padding:2px 7px" onclick="openEditTime(${idx},${ci})">時間編集</button>
+          <button class="btn info" style="font-size:11px;padding:2px 7px" onclick="jonaiBtnClick(${idx},${ci})">場内</button>
+          <button class="btn warn" style="font-size:11px;padding:2px 7px" onclick="openExtend(${idx},${ci})">延長</button>
+          <button class="btn danger" style="font-size:11px;padding:2px 7px" onclick="markDone(${idx},${ci})">${c.done?'復元':'終了'}</button>
+          <button class="btn" style="font-size:11px;padding:2px 7px" onclick="deleteCourse(${idx},${ci})">削除</button>
         </div>
+        <div class="memo-row">
+          <input class="memo-input" type="text" placeholder="メモ1" value="${c.memo1||''}" oninput="updateMemo(${idx},${ci},'memo1',this.value)" />
+          <input class="memo-input" type="text" placeholder="メモ2" value="${c.memo2||''}" oninput="updateMemo(${idx},${ci},'memo2',this.value)" />
+        </div>
+        ${renderHalfBlock(idx,ci,sc,c.firstHalf,c.secondHalf,null,false)}
+        ${renderTimeline(sc,c.type,c.firstHalf,c.secondHalf,`tl_${idx}_${ci}_base`,false,null)}
+        ${(c.extensions||[]).map((ext,ei)=>{
+          let prevEnd=sc.secondEnd;
+          for(let i=0;i<ei;i++){prevEnd=getExtSchedule(prevEnd,c.extensions[i].mins,c.extensions[i]).secondEnd;}
+          const esc=getExtSchedule(prevEnd,ext.mins,ext);
+          const key=`${idx}_${ci}_${ei}`;
+          const ecollapsed=extCollapsed[key]||false;
+          return`<div class="ext-block">
+            <div class="ext-block-label" onclick="toggleExt('${key}')">
+              <span>延長${ei+1} (${ext.mins}分) ${esc.firstStart}→${esc.secondEnd}</span>
+              ${!esc.isHalf?`<button class="btn info" style="font-size:10px;padding:1px 6px" onclick="event.stopPropagation();jonaiBtnClick(${idx},${ci},${ei})">場内</button>`:''}
+              <button class="btn danger" style="font-size:10px;padding:1px 6px" onclick="event.stopPropagation();deleteExtension(${idx},${ci},${ei})">削除</button>
+              <span class="chevron" id="chev_${key}">${ecollapsed?'▶':'▼'}</span>
+            </div>
+            <div class="ext-block-body${ecollapsed?' collapsed':''}" id="extbody_${key}">
+              ${renderHalfBlock(idx,ci,esc,ext.firstHalf,ext.secondHalf,ei,esc.isHalf)}
+              ${renderTimeline(esc,c.type,ext.firstHalf,ext.secondHalf,`tl_${idx}_${ci}_ext${ei}`,true,ext.mins)}
+            </div>
+          </div>`;
+        }).join('')}
         `}
       </div>`;
     });
