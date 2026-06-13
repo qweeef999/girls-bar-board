@@ -10,7 +10,7 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .shop-tabs{display:flex;gap:4px;padding:10px 12px 0;background:#222;border-bottom:2px solid #444}
 .shop-tab{padding:8px 20px;cursor:pointer;border-radius:6px 6px 0 0;color:#aaa;background:transparent;border:none;font-size:14px}
 .shop-tab.active{background:#f5f5f5;color:#222;font-weight:600}
-.inner-tabs{display:flex;gap:4px;padding:8px 12px 0;background:#fff;border-bottom:1px solid #ddd}
+.inner-tabs{display:flex;gap:4px;padding:8px 12px 0;background:#fff;border-bottom:1px solid #ddd;flex-wrap:wrap}
 .inner-tab{padding:6px 16px;cursor:pointer;border-radius:6px 6px 0 0;color:#888;background:transparent;border:1px solid transparent;font-size:13px}
 .inner-tab.active{border-color:#ddd;border-bottom:1px solid #fff;color:#222;font-weight:500;background:#fff}
 .panel{display:none;padding:12px}
@@ -93,6 +93,21 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 #copyModalBox{background:#fff;border-radius:12px;padding:18px;width:280px;max-width:92vw}
 #copyModalText{width:100%;font-size:14px;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:12px;resize:none;height:70px}
 .chevron{font-size:10px;margin-left:4px}
+/* ドリンクカウンター */
+.drink-counter{display:flex;gap:10px;padding:12px 0;overflow-x:auto}
+.drink-item{flex:1;min-width:70px;background:#fff;border:1px solid #ddd;border-radius:10px;padding:10px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+.drink-item-label{font-size:12px;font-weight:500;color:#444}
+.drink-item-price{font-size:10px;color:#888}
+.drink-tally{font-size:22px;letter-spacing:2px;min-height:32px;line-height:1.2;color:#222;font-family:serif}
+.drink-count-num{font-size:13px;font-weight:600;color:#185fa5}
+.drink-tap-btn{width:52px;height:52px;border-radius:50%;border:2px solid #ddd;background:#f9f9f9;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;user-select:none}
+.drink-tap-btn:active{background:#e1f5ee;border-color:#5dcaa5}
+.drink-undo-btn{font-size:10px;padding:2px 8px;border:1px solid #ddd;border-radius:10px;cursor:pointer;background:#fff;color:#888;margin-top:2px}
+.drink-undo-btn:hover{background:#ffeaea;color:#a32d2d}
+.drink-total-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px;background:#f9f9f9;border-radius:8px}
+.drink-total-item{font-size:12px;color:#444}
+.drink-total-item span{font-weight:600;color:#185fa5}
+.drink-reset-btn{font-size:11px;padding:3px 10px;border:1px solid #f09595;border-radius:20px;cursor:pointer;background:#ffeaea;color:#a32d2d;margin-left:auto}
 </style>
 </head>
 <body>
@@ -208,16 +223,23 @@ const shops=[
   {name:'ANUBIS',extOptions:[20,40],staff:[],courses:[],innerTab:0,showDone:false},
   {name:'BASTET',extOptions:[30,60],staff:[],courses:[],innerTab:0,showDone:false}
 ];
+const drinkCount=[
+  {s:0,m:0,l:0,jonai:0},
+  {s:0,m:0,l:0,jonai:0}
+];
 let currentShop=0;
 let pendingShop=null,pendingCourseIdx=null,pendingHalf=null,pendingExtCourse=null,pendingEditCourse=null,pendingExtBlock=null;
 const extCollapsed={};
 const courseCollapsed={};
 
-function save(){localStorage.setItem('gbv5',JSON.stringify(shops.map(s=>({name:s.name,extOptions:s.extOptions,staff:s.staff,courses:s.courses,innerTab:s.innerTab||0,showDone:s.showDone||false}))))}
+function save(){localStorage.setItem('gbv5',JSON.stringify(shops.map(s=>({name:s.name,extOptions:s.extOptions,staff:s.staff,courses:s.courses,innerTab:s.innerTab||0,showDone:s.showDone||false}))))
+localStorage.setItem('gbDrink',JSON.stringify(drinkCount));}
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem('gbv5'));
     if(d){d.forEach((s,i)=>{shops[i].staff=s.staff||[];shops[i].courses=s.courses||[];shops[i].innerTab=s.innerTab||0;shops[i].showDone=s.showDone||false;});}
+    const dc=JSON.parse(localStorage.getItem('gbDrink'));
+    if(dc){dc.forEach((d,i)=>{if(drinkCount[i])Object.assign(drinkCount[i],d);});}
   }catch(e){}
 }
 
@@ -332,6 +354,68 @@ function toggleExt(key){
   const chev=document.getElementById('chev_'+key);
   if(body)body.classList.toggle('collapsed',extCollapsed[key]);
   if(chev)chev.textContent=extCollapsed[key]?'▶':'▼';
+}
+
+// 正の字変換
+function toTally(n){
+  if(n<=0)return'';
+  const full=Math.floor(n/5);
+  const rem=n%5;
+  const strokes=['一','二','三','四','正'];
+  let result='';
+  for(let i=0;i<full;i++)result+='正 ';
+  if(rem>0)result+=strokes[rem-1];
+  return result.trim();
+}
+
+function drinkTap(shopIdx,key){
+  drinkCount[shopIdx][key]++;
+  save();
+  renderDrinkTab(shopIdx);
+}
+function drinkUndo(shopIdx,key){
+  if(drinkCount[shopIdx][key]>0){drinkCount[shopIdx][key]--;save();renderDrinkTab(shopIdx);}
+}
+function drinkReset(shopIdx){
+  if(!confirm('ドリンクカウントをリセットしますか？'))return;
+  drinkCount[shopIdx]={s:0,m:0,l:0,jonai:0};
+  save();renderDrinkTab(shopIdx);
+}
+
+function renderDrinkTab(idx){
+  const dc=drinkCount[idx];
+  const items=[
+    {key:'s',label:'S',price:'¥1,500'},
+    {key:'m',label:'M',price:'¥2,000'},
+    {key:'l',label:'L',price:'¥5,000'},
+    {key:'jonai',label:'場内',price:'指名'},
+  ];
+  const total=(dc.s*1500+dc.m*2000+dc.l*5000);
+  let html=`<div class="panel active">
+    <div class="drink-counter">`;
+  items.forEach(item=>{
+    const n=dc[item.key]||0;
+    html+=`<div class="drink-item">
+      <div class="drink-item-label">${item.label}</div>
+      <div class="drink-item-price">${item.price}</div>
+      <div class="drink-tally">${toTally(n)||'&nbsp;'}</div>
+      <div class="drink-count-num">${n}本</div>
+      <button class="drink-tap-btn" onclick="drinkTap(${idx},'${item.key}')">＋</button>
+      <button class="drink-undo-btn" onclick="drinkUndo(${idx},'${item.key}')">取消</button>
+    </div>`;
+  });
+  html+=`</div>
+    <div class="drink-total-row">
+      <div class="drink-total-item">S: <span>${dc.s}</span></div>
+      <div class="drink-total-item">M: <span>${dc.m}</span></div>
+      <div class="drink-total-item">L: <span>${dc.l}</span></div>
+      <div class="drink-total-item">場内: <span>${dc.jonai}</span></div>
+      <div class="drink-total-item">合計: <span>¥${total.toLocaleString()}</span></div>
+      <button class="drink-reset-btn" onclick="drinkReset(${idx})">リセット</button>
+    </div>
+  </div>`;
+  const panel=document.getElementById(`drinkPanel${idx}`);
+  if(panel)panel.innerHTML=html;
 }
 
 function switchShop(i){
@@ -512,11 +596,14 @@ function renderShop(idx){
     <button class="inner-tab${tab===0?' active':''}" onclick="switchInnerTab(${idx},0)">スタッフ</button>
     <button class="inner-tab${tab===1?' active':''}" onclick="switchInnerTab(${idx},1)">コース</button>
     <button class="inner-tab${tab===2?' active':''}" onclick="switchInnerTab(${idx},2)">状況一覧</button>
+    <button class="inner-tab${tab===3?' active':''}" onclick="switchInnerTab(${idx},3)">ドリンク</button>
   </div>`;
   if(tab===0)html+=renderStaffTab(idx);
   else if(tab===1)html+=renderCourseTab(idx);
-  else html+=renderStatusTab(idx);
+  else if(tab===2)html+=renderStatusTab(idx);
+  else html+=`<div id="drinkPanel${idx}"></div>`;
   document.getElementById('shopPanel'+idx).innerHTML=html;
+  if(tab===3)renderDrinkTab(idx);
 }
 
 function renderStaffTab(idx){
