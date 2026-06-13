@@ -60,7 +60,6 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 .ext-block{border:1px solid #f0c060;border-radius:8px;padding:8px;margin-bottom:8px;background:#fffdf5}
 .ext-block-label{font-size:11px;color:#854f0b;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;cursor:pointer;user-select:none}
 .ext-block-body.collapsed{display:none}
-.course-detail.collapsed{display:none}
 .status-table{width:100%;border-collapse:collapse}
 .status-table th{text-align:left;font-size:12px;color:#888;font-weight:500;padding:5px 7px;border-bottom:1px solid #eee}
 .status-table td{padding:7px;border-bottom:1px solid #f0f0f0;font-size:12px;vertical-align:middle}
@@ -93,18 +92,18 @@ body{font-family:sans-serif;background:#f5f5f5;color:#222;font-size:14px}
 #copyModalBox{background:#fff;border-radius:12px;padding:18px;width:280px;max-width:92vw}
 #copyModalText{width:100%;font-size:14px;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:12px;resize:none;height:70px}
 .chevron{font-size:10px;margin-left:4px}
-/* ドリンクカウンター */
 .drink-counter{display:flex;gap:10px;padding:12px 0;overflow-x:auto}
 .drink-item{flex:1;min-width:70px;background:#fff;border:1px solid #ddd;border-radius:10px;padding:10px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
-.drink-item-label{font-size:12px;font-weight:500;color:#444}
-.drink-item-price{font-size:10px;color:#888}
-.drink-tally{font-size:22px;letter-spacing:2px;min-height:32px;line-height:1.2;color:#222;font-family:serif}
+.drink-item-back{font-size:18px;font-weight:700;color:#222}
+.drink-item-price{font-size:10px;color:#aaa}
+.drink-item-label{font-size:11px;color:#888}
+.drink-tally{font-size:20px;letter-spacing:1px;min-height:28px;line-height:1.2;color:#222;font-family:serif}
 .drink-count-num{font-size:13px;font-weight:600;color:#185fa5}
 .drink-tap-btn{width:52px;height:52px;border-radius:50%;border:2px solid #ddd;background:#f9f9f9;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;user-select:none}
 .drink-tap-btn:active{background:#e1f5ee;border-color:#5dcaa5}
 .drink-undo-btn{font-size:10px;padding:2px 8px;border:1px solid #ddd;border-radius:10px;cursor:pointer;background:#fff;color:#888;margin-top:2px}
 .drink-undo-btn:hover{background:#ffeaea;color:#a32d2d}
-.drink-total-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px;background:#f9f9f9;border-radius:8px}
+.drink-total-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px;background:#f9f9f9;border-radius:8px;align-items:center}
 .drink-total-item{font-size:12px;color:#444}
 .drink-total-item span{font-weight:600;color:#185fa5}
 .drink-reset-btn{font-size:11px;padding:3px 10px;border:1px solid #f09595;border-radius:20px;cursor:pointer;background:#ffeaea;color:#a32d2d;margin-left:auto}
@@ -223,23 +222,22 @@ const shops=[
   {name:'ANUBIS',extOptions:[20,40],staff:[],courses:[],innerTab:0,showDone:false},
   {name:'BASTET',extOptions:[30,60],staff:[],courses:[],innerTab:0,showDone:false}
 ];
-const drinkCount=[
-  {s:0,m:0,l:0,jonai:0},
-  {s:0,m:0,l:0,jonai:0}
-];
+const drinkCount={s:0,m:0,l:0,jonai:0};
 let currentShop=0;
 let pendingShop=null,pendingCourseIdx=null,pendingHalf=null,pendingExtCourse=null,pendingEditCourse=null,pendingExtBlock=null;
 const extCollapsed={};
 const courseCollapsed={};
 
-function save(){localStorage.setItem('gbv5',JSON.stringify(shops.map(s=>({name:s.name,extOptions:s.extOptions,staff:s.staff,courses:s.courses,innerTab:s.innerTab||0,showDone:s.showDone||false}))))
-localStorage.setItem('gbDrink',JSON.stringify(drinkCount));}
+function save(){
+  localStorage.setItem('gbv5',JSON.stringify(shops.map(s=>({name:s.name,extOptions:s.extOptions,staff:s.staff,courses:s.courses,innerTab:s.innerTab||0,showDone:s.showDone||false}))));
+  localStorage.setItem('gbDrink',JSON.stringify(drinkCount));
+}
 function load(){
   try{
     const d=JSON.parse(localStorage.getItem('gbv5'));
     if(d){d.forEach((s,i)=>{shops[i].staff=s.staff||[];shops[i].courses=s.courses||[];shops[i].innerTab=s.innerTab||0;shops[i].showDone=s.showDone||false;});}
     const dc=JSON.parse(localStorage.getItem('gbDrink'));
-    if(dc){dc.forEach((d,i)=>{if(drinkCount[i])Object.assign(drinkCount[i],d);});}
+    if(dc)Object.assign(drinkCount,dc);
   }catch(e){}
 }
 
@@ -356,7 +354,6 @@ function toggleExt(key){
   if(chev)chev.textContent=extCollapsed[key]?'▶':'▼';
 }
 
-// 正の字変換
 function toTally(n){
   if(n<=0)return'';
   const full=Math.floor(n/5);
@@ -368,53 +365,46 @@ function toTally(n){
   return result.trim();
 }
 
-function drinkTap(shopIdx,key){
-  drinkCount[shopIdx][key]++;
-  save();
-  renderDrinkTab(shopIdx);
-}
-function drinkUndo(shopIdx,key){
-  if(drinkCount[shopIdx][key]>0){drinkCount[shopIdx][key]--;save();renderDrinkTab(shopIdx);}
-}
-function drinkReset(shopIdx){
+function drinkTap(key){drinkCount[key]++;save();renderDrinkPanel();}
+function drinkUndo(key){if(drinkCount[key]>0){drinkCount[key]--;save();renderDrinkPanel();}}
+function drinkReset(){
   if(!confirm('ドリンクカウントをリセットしますか？'))return;
-  drinkCount[shopIdx]={s:0,m:0,l:0,jonai:0};
-  save();renderDrinkTab(shopIdx);
+  drinkCount.s=0;drinkCount.m=0;drinkCount.l=0;drinkCount.jonai=0;
+  save();renderDrinkPanel();
 }
 
-function renderDrinkTab(idx){
-  const dc=drinkCount[idx];
+function renderDrinkPanel(){
   const items=[
-    {key:'s',label:'S',price:'¥1,500'},
-    {key:'m',label:'M',price:'¥2,000'},
-    {key:'l',label:'L',price:'¥5,000'},
-    {key:'jonai',label:'場内',price:'指名'},
+    {key:'s',back:'400',price:'1,500円'},
+    {key:'m',back:'500',price:'2,000円'},
+    {key:'l',back:'1,500',price:'5,000円'},
+    {key:'jonai',back:'場内',price:''},
   ];
-  const total=(dc.s*1500+dc.m*2000+dc.l*5000);
+  const backTotal=drinkCount.s*400+drinkCount.m*500+drinkCount.l*1500;
   let html=`<div class="panel active">
     <div class="drink-counter">`;
   items.forEach(item=>{
-    const n=dc[item.key]||0;
+    const n=drinkCount[item.key]||0;
     html+=`<div class="drink-item">
-      <div class="drink-item-label">${item.label}</div>
-      <div class="drink-item-price">${item.price}</div>
+      <div class="drink-item-back">${item.back}</div>
+      ${item.price?`<div class="drink-item-price">${item.price}</div>`:'<div class="drink-item-price">&nbsp;</div>'}
       <div class="drink-tally">${toTally(n)||'&nbsp;'}</div>
       <div class="drink-count-num">${n}本</div>
-      <button class="drink-tap-btn" onclick="drinkTap(${idx},'${item.key}')">＋</button>
-      <button class="drink-undo-btn" onclick="drinkUndo(${idx},'${item.key}')">取消</button>
+      <button class="drink-tap-btn" onclick="drinkTap('${item.key}')">＋</button>
+      <button class="drink-undo-btn" onclick="drinkUndo('${item.key}')">取消</button>
     </div>`;
   });
   html+=`</div>
     <div class="drink-total-row">
-      <div class="drink-total-item">S: <span>${dc.s}</span></div>
-      <div class="drink-total-item">M: <span>${dc.m}</span></div>
-      <div class="drink-total-item">L: <span>${dc.l}</span></div>
-      <div class="drink-total-item">場内: <span>${dc.jonai}</span></div>
-      <div class="drink-total-item">合計: <span>¥${total.toLocaleString()}</span></div>
-      <button class="drink-reset-btn" onclick="drinkReset(${idx})">リセット</button>
+      <div class="drink-total-item">400: <span>${drinkCount.s}</span></div>
+      <div class="drink-total-item">500: <span>${drinkCount.m}</span></div>
+      <div class="drink-total-item">1500: <span>${drinkCount.l}</span></div>
+      <div class="drink-total-item">場内: <span>${drinkCount.jonai}</span></div>
+      <div class="drink-total-item">バック合計: <span>¥${backTotal.toLocaleString()}</span></div>
+      <button class="drink-reset-btn" onclick="drinkReset()">リセット</button>
     </div>
   </div>`;
-  const panel=document.getElementById(`drinkPanel${idx}`);
+  const panel=document.getElementById('drinkPanel');
   if(panel)panel.innerHTML=html;
 }
 
@@ -601,9 +591,9 @@ function renderShop(idx){
   if(tab===0)html+=renderStaffTab(idx);
   else if(tab===1)html+=renderCourseTab(idx);
   else if(tab===2)html+=renderStatusTab(idx);
-  else html+=`<div id="drinkPanel${idx}"></div>`;
+  else html+=`<div id="drinkPanel"></div>`;
   document.getElementById('shopPanel'+idx).innerHTML=html;
-  if(tab===3)renderDrinkTab(idx);
+  if(tab===3)renderDrinkPanel();
 }
 
 function renderStaffTab(idx){
